@@ -1,6 +1,4 @@
-from testapp import dangerous_action
 
-dangerous_action()
 
 
 def main():
