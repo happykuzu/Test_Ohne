@@ -1,0 +1,45 @@
+name: Verify app.py signature
+
+on:
+  workflow_dispatch:  # manuelles Ausführen, kein Push-Trigger
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # Repository auschecken
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Cosign installieren
+      - name: Install Cosign CLI
+        uses: sigstore/cosign-installer@v3.5.0
+
+      # Überprüfen der Signatur
+      - name: Verify app.py signature
+        run: |
+          # mögliche Pfade prüfen
+          BUNDLE_PATH="./app.py.sigstore.json"
+          if [ ! -f "$BUNDLE_PATH" ]; then
+            echo "❌ Signatur nicht im Root gefunden, versuche Unterordner..."
+            BUNDLE_PATH="./signatures/app.py.sigstore.json"
+            if [ ! -f "$BUNDLE_PATH" ]; then
+              echo "❌ Keine Signaturdatei gefunden – bitte zuerst Sign-Workflow ausführen."
+              exit 1
+            fi
+          fi
+
+          echo "✅ Signaturdatei gefunden: $BUNDLE_PATH"
+
+          # Identity exakt anpassen (Groß-/Kleinschreibung beachten!)
+          cosign verify-blob \
+            --bundle "$BUNDLE_PATH" \
+            --certificate-identity "https://github.com/happykuzu/PAII/.github/workflows/Sign.yml@refs/heads/main" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            app.py
+
+

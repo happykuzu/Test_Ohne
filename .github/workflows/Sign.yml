@@ -1,0 +1,50 @@
+name: Sign app.py with Cosign (Bundle)
+
+on:
+  workflow_dispatch:
+
+
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write    # für Keyless Signing
+      contents: write    # nötig für commit & push
+
+    steps:
+      # Repository auschecken
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # für token auth
+
+      # Cosign installieren
+      - name: Install Cosign CLI
+        uses: sigstore/cosign-installer@v3.5.0
+
+      # Alte Signatur löschen
+      - name: Clean old signature
+        run: |
+          if [ -f app.py.sigstore.json ]; then
+            echo "Alte Signatur gefunden, wird gelöscht..."
+            rm -f app.py.sigstore.json
+          fi
+
+      # Neue Signatur erstellen
+      - name: Sign app.py keyless
+        run: |
+          cosign sign-blob --yes --bundle app.py.sigstore.json app.py
+          echo "✅ Neue Signatur erstellt: app.py.sigstore.json"
+
+      # Signatur ins Repo committen & pushen
+      - name: Commit and push signature
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app.py.sigstore.json
+          git commit -m "Update app.py signature [skip ci]" || echo "Keine Änderungen zu committen"
+          git push "https://${GITHUB_ACTOR}:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+
